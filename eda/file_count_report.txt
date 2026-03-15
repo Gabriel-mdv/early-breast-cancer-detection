@@ -1,0 +1,15 @@
+FILE COUNT VERIFICATION REPORT
+============================================================
+
+Dataset Location: datasets
+
+RESULTS:
+--------
+Benign     : 437 images, 437 masks = 874 files
+Malignant  : 210 images, 210 masks = 420 files
+Normal     : 133 images, 133 masks = 266 files
+
+TOTAL      : 780 images, 780 masks = 1560 files
+
+EXPECTED   : 780 images + 780 masks = 1560 files
+STATUS     : DATASET VERIFIED - Primary data accessible

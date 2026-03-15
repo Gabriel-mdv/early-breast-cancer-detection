@@ -1,0 +1,176 @@
+{
+  "validation_results": {
+    "total_images": 780,
+    "valid_images": 780,
+    "missing_images": 0,
+    "validity_rate": 1.0
+  },
+  "by_split": {
+    "train": {
+      "total": 545,
+      "valid": 545,
+      "missing": 0,
+      "valid_rate": 1.0
+    },
+    "val": {
+      "total": 115,
+      "valid": 115,
+      "missing": 0,
+      "valid_rate": 1.0
+    },
+    "test": {
+      "total": 120,
+      "valid": 120,
+      "missing": 0,
+      "valid_rate": 1.0
+    }
+  },
+  "by_class": {
+    "benign": 437,
+    "malignant": 210,
+    "normal": 133
+  },
+  "sample_verification": {
+    "train": [
+      {
+        "path": "images\\benign\\benign (26).npy",
+        "shape": [
+          224,
+          224,
+          3
+        ],
+        "dtype": "float32",
+        "min": 0.0,
+        "max": 2.0,
+        "mean": 0.3560267984867096
+      },
+      {
+        "path": "images\\benign\\benign (320).npy",
+        "shape": [
+          224,
+          224,
+          3
+        ],
+        "dtype": "float32",
+        "min": 0.0,
+        "max": 2.0,
+        "mean": 0.2463129758834839
+      },
+      {
+        "path": "images\\benign\\benign (246).npy",
+        "shape": [
+          224,
+          224,
+          3
+        ],
+        "dtype": "float32",
+        "min": 0.0,
+        "max": 2.0,
+        "mean": 0.2570352256298065
+      }
+    ],
+    "val": [
+      {
+        "path": "images\\benign\\benign (9).npy",
+        "shape": [
+          224,
+          224,
+          3
+        ],
+        "dtype": "float32",
+        "min": 0.0,
+        "max": 2.0,
+        "mean": 0.8032525777816772
+      },
+      {
+        "path": "images\\benign\\benign (406).npy",
+        "shape": [
+          224,
+          224,
+          3
+        ],
+        "dtype": "float32",
+        "min": 0.0,
+        "max": 2.0,
+        "mean": 0.2240513414144516
+      },
+      {
+        "path": "images\\malignant\\malignant (10).npy",
+        "shape": [
+          224,
+          224,
+          3
+        ],
+        "dtype": "float32",
+        "min": 0.0,
+        "max": 2.0,
+        "mean": 0.2414301633834839
+      }
+    ],
+    "test": [
+      {
+        "path": "images\\benign\\benign (233).npy",
+        "shape": [
+          224,
+          224,
+          3
+        ],
+        "dtype": "float32",
+        "min": 0.0,
+        "max": 2.0,
+        "mean": 0.2661232352256775
+      },
+      {
+        "path": "images\\benign\\benign (292).npy",
+        "shape": [
+          224,
+          224,
+          3
+        ],
+        "dtype": "float32",
+        "min": 0.0,
+        "max": 2.0,
+        "mean": 0.24611367285251617
+      },
+      {
+        "path": "images\\malignant\\malignant (182).npy",
+        "shape": [
+          224,
+          224,
+          3
+        ],
+        "dtype": "float32",
+        "min": 0.0,
+        "max": 2.0,
+        "mean": 0.2604033946990967
+      }
+    ]
+  },
+  "dataset_summary": {
+    "total_classes": 3,
+    "class_names": [
+      "benign",
+      "malignant",
+      "normal"
+    ],
+    "total_images": 780,
+    "benign": 437,
+    "malignant": 210,
+    "normal": 133,
+    "preprocessing_steps": [
+      "Format Standardization (RGB -> Greyscale)",
+      "Anisotropic Diffusion Denoising (10 iterations, kappa=30)",
+      "CLAHE Contrast Enhancement (clip=2.0, tiles=8x8)",
+      "ImageNet Normalization (mean=0.485, std=0.229)",
+      "Bilinear Resize (224x224)",
+      "Replicate to 3-channel format"
+    ],
+    "output_shape": "(224, 224, 3)",
+    "output_dtype": "float32",
+    "train_test_split": {
+      "train": "69.9% (545 images)",
+      "val": "14.7% (115 images)",
+      "test": "15.4% (120 images)"
+    }
+  }
+}

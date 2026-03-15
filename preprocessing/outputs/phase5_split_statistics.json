@@ -1,0 +1,47 @@
+{
+  "split_ratios": {
+    "train": 0.7,
+    "val": 0.15,
+    "test": 0.15
+  },
+  "split_sizes": {
+    "train": 545,
+    "val": 115,
+    "test": 120
+  },
+  "by_class": {
+    "benign": {
+      "total": 437,
+      "train": 305,
+      "val": 65,
+      "test": 67,
+      "stratification_ratios": {
+        "train": 0.6979405034324943,
+        "val": 0.14874141876430205,
+        "test": 0.15331807780320367
+      }
+    },
+    "malignant": {
+      "total": 210,
+      "train": 147,
+      "val": 31,
+      "test": 32,
+      "stratification_ratios": {
+        "train": 0.7,
+        "val": 0.14761904761904762,
+        "test": 0.1523809523809524
+      }
+    },
+    "normal": {
+      "total": 133,
+      "train": 93,
+      "val": 19,
+      "test": 21,
+      "stratification_ratios": {
+        "train": 0.6992481203007519,
+        "val": 0.14285714285714285,
+        "test": 0.15789473684210525
+      }
+    }
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "class_distribution": {
+    "benign": {
+      "count": 437,
+      "percentage": 56.0,
+      "weight": 0.595
+    },
+    "malignant": {
+      "count": 210,
+      "percentage": 26.9,
+      "weight": 1.2381
+    },
+    "normal": {
+      "count": 133,
+      "percentage": 17.1,
+      "weight": 1.9549
+    }
+  },
+  "total_images": 780,
+  "num_classes": 3,
+  "imbalance_ratio": "3.29:1.58:1.00",
+  "class_weights_dict": {
+    "benign": 0.595,
+    "malignant": 1.2381,
+    "normal": 1.9549
+  },
+  "class_weights_list": [
+    0.595,
+    1.2381,
+    1.9549
+  ],
+  "lesion_coverage_analysis": {
+    "benign": {
+      "mean_coverage_pct": 6.7,
+      "min_coverage_pct": 0.28,
+      "max_coverage_pct": 51.3,
+      "std_coverage_pct": 8.14,
+      "total_masks_analyzed": 437
+    },
+    "malignant": {
+      "mean_coverage_pct": 14.72,
+      "min_coverage_pct": 0.21,
+      "max_coverage_pct": 56.29,
+      "std_coverage_pct": 10.71,
+      "total_masks_analyzed": 210
+    },
+    "normal": {
+      "mean_coverage_pct": 0.0,
+      "min_coverage_pct": 0.0,
+      "max_coverage_pct": 0.0,
+      "std_coverage_pct": 0.0,
+      "total_masks_analyzed": 133
+    }
+  }
+}

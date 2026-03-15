@@ -1,0 +1,24 @@
+{
+  "dimension_stats": {
+    "width": {
+      "min": 190,
+      "max": 1048,
+      "mean": 615.6794871794872,
+      "median": 564.0,
+      "std": 121.97743523877408
+    },
+    "height": {
+      "min": 310,
+      "max": 719,
+      "mean": 501.4525641025641,
+      "median": 474.0,
+      "std": 76.63877345045053
+    },
+    "unique_sizes": 639
+  },
+  "channel_analysis": {
+    "single_channel_images": 0,
+    "three_channel_images": 780,
+    "other": 0
+  }
+}

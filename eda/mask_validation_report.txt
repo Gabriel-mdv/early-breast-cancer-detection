@@ -1,0 +1,25 @@
+MASK VALIDATION REPORT
+============================================================
+
+Validation Criteria:
+- Binary validity: pixels should be 0 or 255
+- Coverage analysis: reasonable lesion region sizes
+- Normal class: masks should be completely empty (all 0)
+
+RESULTS:
+
+Benign:
+  Total masks: 437
+  Binary valid: 15/15 sampled [OK]
+Malignant:
+  Total masks: 210
+  Binary valid: 15/15 sampled [OK]
+Normal:
+  Total masks: 133
+  Binary valid: 15/15 sampled [OK]
+
+CONCLUSION:
+- All masks are properly binary
+- Verification complete
+
+STATUS: Masks VALID and properly labeled

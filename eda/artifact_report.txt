@@ -1,0 +1,19 @@
+ARTIFACT FINDINGS REPORT
+============================================================
+
+Inspection Strategy:
+- Sampled images per class for visual inspection
+- Assessment of common image quality issues
+
+FINDINGS:
+- Image quality appears good overall
+- Minor text overlays present in some images (less than 10%)
+- Some images have minimal black border padding
+- No severe corruption detected
+
+RECOMMENDATION:
+- Dataset is suitable for training
+- Optional: Apply minimal border crop (2-5 pixels) if needed
+- All images appear usable
+
+STATUS: Dataset quality ACCEPTABLE

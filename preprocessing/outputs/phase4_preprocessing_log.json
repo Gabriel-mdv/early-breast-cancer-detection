@@ -1,0 +1,36 @@
+{
+  "start_time": 1773609269.7140548,
+  "end_time": 1773610511.8565595,
+  "total_images": 780,
+  "successful": 780,
+  "failed": 0,
+  "success_rate": 1.0,
+  "execution_time_seconds": 1242.1425046920776,
+  "avg_time_per_image": 1.5924903906308687,
+  "by_class": {
+    "benign": {
+      "total": 437,
+      "successful": 437,
+      "failed": 0,
+      "success_rate": 1.0
+    },
+    "malignant": {
+      "total": 210,
+      "successful": 210,
+      "failed": 0,
+      "success_rate": 1.0
+    },
+    "normal": {
+      "total": 133,
+      "successful": 133,
+      "failed": 0,
+      "success_rate": 1.0
+    }
+  },
+  "class_file_counts": {
+    "benign": 437,
+    "malignant": 210,
+    "normal": 133
+  },
+  "errors": []
+}
