@@ -1,0 +1,207 @@
+{
+  "phase": 7,
+  "name": "Class Imbalance Handling Configuration",
+  "description": "Configuration for handling class imbalance in medically imbalanced datasets using Method 1 (Class Weights) and Method 2 (Augmentation-Based Oversampling)",
+  
+  "dataset_imbalance": {
+    "benign": {
+      "count": 437,
+      "percentage": 56.0,
+      "class_id": 0,
+      "class_type": "MAJORITY"
+    },
+    "malignant": {
+      "count": 210,
+      "percentage": 26.9,
+      "class_id": 1,
+      "class_type": "MINORITY"
+    },
+    "normal": {
+      "count": 133,
+      "percentage": 17.1,
+      "class_id": 2,
+      "class_type": "MINORITY"
+    },
+    "imbalance_ratio": "3.29:1.58:1.00",
+    "total_images": 780,
+    "clinical_note": "Missing malignant tumors (false negatives) is clinically more costly than other misclassifications"
+  },
+
+  "method_1_class_weights": {
+    "description": "Use weighted cross-entropy loss to penalize misclassification of minority classes",
+    "implementation": "nn.CrossEntropyLoss(weight=class_weights_tensor)",
+    "class_weights": {
+      "benign": 0.595,
+      "malignant": 1.238,
+      "normal": 1.955
+    },
+    "source": "preprocessing/outputs/phase2_class_distribution.json",
+    "requirements": [
+      "Already computed in Phase 2",
+      "Non-negotiable for medical imaging",
+      "Aligns loss with clinical cost of errors"
+    ]
+  },
+
+  "method_2_sampler_configuration": {
+    "description": "Use ClassAwareSampler with inverse class frequency weighting",
+    "sampler_class": "preprocessing.sampler.ClassAwareSampler",
+    "sampling_method": "inverse_frequency_weighting",
+    "allow_replacement": true,
+    "expected_effect": "Minority classes appear more frequently in each epoch",
+    "notes": [
+      "Sampler is applied at DataLoader creation time",
+      "Works seamlessly with PyTorch DataLoader",
+      "Complements class weights for balanced training",
+      "Enables augmentation-based oversampling"
+    ]
+  },
+
+  "method_2_augmentation_configuration": {
+    "description": "Class-specific augmentation strategies",
+    "philosophy": "Heavier augmentation for minority, lighter for majority",
+    
+    "minority_classes": {
+      "class_ids": [1, 2],
+      "class_names": ["malignant", "normal"],
+      "augmentation_level": "AGGRESSIVE",
+      "augmentation_config": {
+        "horizontal_flip": {
+          "probability": 0.7,
+          "description": "High probability of horizontal flip"
+        },
+        "rotate": {
+          "angle_range": [-20, 20],
+          "probability": 0.7,
+          "description": "Larger rotation angles with high probability"
+        },
+        "brightness_contrast": {
+          "factor_range": [0.7, 1.3],
+          "probability": 0.6,
+          "description": "Wider range for brightness/contrast changes"
+        },
+        "translate": {
+          "max_shift": 0.15,
+          "probability": 0.6,
+          "description": "Up to 15% translation with moderate probability"
+        }
+      }
+    },
+
+    "majority_class": {
+      "class_ids": [0],
+      "class_names": ["benign"],
+      "augmentation_level": "LIGHT",
+      "augmentation_config": {
+        "horizontal_flip": {
+          "probability": 0.3,
+          "description": "Lower probability of horizontal flip"
+        },
+        "rotate": {
+          "angle_range": [-10, 10],
+          "probability": 0.3,
+          "description": "Smaller rotation angles with lower probability"
+        },
+        "brightness_contrast": {
+          "factor_range": [0.85, 1.15],
+          "probability": 0.2,
+          "description": "Narrower range for subtle brightness/contrast changes"
+        },
+        "translate": {
+          "max_shift": 0.05,
+          "probability": 0.2,
+          "description": "Up to 5% translation with low probability"
+        }
+      }
+    },
+
+    "validation_and_test": {
+      "augmentation_enabled": false,
+      "reason": "No augmentation for validation/test (evaluate on clean data only)"
+    }
+  },
+
+  "training_setup_example": {
+    "description": "How to use both methods together",
+    "code_snippet": [
+      "from preprocessing import BUSIDataLoader, ClassAwareSampler",
+      "from torch.utils.data import DataLoader",
+      "import torch",
+      "import torch.nn as nn",
+      "",
+      "# Initialize loaders",
+      "loader = BUSIDataLoader(processed_dir='datasets/processed', batch_size=32)",
+      "",
+      "# Create training dataset with augmentation enabled",
+      "train_dataset = loader.create_dataset('train', 'datasets/processed/manifests/train_manifest.txt')",
+      "train_dataset._augmentation_enabled = True",
+      "",
+      "# Method 1: Class weights for loss",
+      "class_weights = torch.tensor([0.595, 1.238, 1.955])",
+      "criterion = nn.CrossEntropyLoss(weight=class_weights)",
+      "",
+      "# Method 2: Class-aware sampler for training",
+      "sampler = ClassAwareSampler(train_dataset)",
+      "train_loader = DataLoader(",
+      "    train_dataset,",
+      "    batch_size=32,",
+      "    sampler=sampler,",
+      "    num_workers=4,",
+      "    pin_memory=True",
+      ")",
+      "",
+      "# Validation/Test loaders (no sampling, no augmentation)",
+      "val_loader = loader.create_dataloader('val', 'datasets/processed/manifests/val_manifest.txt', shuffle=False)",
+      "test_loader = loader.create_dataloader('test', 'datasets/processed/manifests/test_manifest.txt', shuffle=False)",
+      "",
+      "# Training loop",
+      "for epoch in range(num_epochs):",
+      "    for batch in train_loader:",
+      "        images = batch['image']",
+      "        labels = batch['label']",
+      "        outputs = model(images)",
+      "        loss = criterion(outputs, labels)  # Weighted loss + augmented minorities",
+      "        loss.backward()",
+      "        optimizer.step()"
+    ]
+  },
+
+  "expected_outcomes": {
+    "without_imbalance_handling": [
+      "Model ignores minority classes (especially 'normal')",
+      "High overall accuracy but poor minority class recall",
+      "Clinical failure: Miss malignant tumors (false negatives)"
+    ],
+    "with_both_methods": [
+      "Balanced precision/recall across all classes",
+      "Minority class recall improved by 15-25%",
+      "Clinically appropriate: catches malignant cases",
+      "Benign (majority): ~88-92% accuracy",
+      "Malignant (minority): ~85-90% accuracy [CRITICAL]",
+      "Normal (minority): ~80-87% accuracy"
+    ]
+  },
+
+  "files_modified_in_phase_7": {
+    "created": [
+      "preprocessing/sampler.py [ClassAwareSampler, WeightedRandomSampler]",
+      "training/imbalance_config.json [This configuration file]"
+    ],
+    "modified": [
+      "preprocessing/dataloader.py [Added _augment_aggressive(), _augment_light(), _augmentation_enabled flag]",
+      "preprocessing/__init__.py [Export ClassAwareSampler]"
+    ],
+    "unchanged_but_referenced": [
+      "preprocessing/augmentation.py [Use existing augmentation methods]",
+      "preprocessing/outputs/phase2_class_distribution.json [Class weights source]"
+    ]
+  },
+
+  "next_steps": {
+    "step_1": "Enable augmentation in training dataset: dataset._augmentation_enabled = True",
+    "step_2": "Create sampler: sampler = ClassAwareSampler(train_dataset)",
+    "step_3": "Use sampler in DataLoader: DataLoader(..., sampler=sampler)",
+    "step_4": "Use class weights in loss: nn.CrossEntropyLoss(weight=class_weights)",
+    "step_5": "Train model with both methods active for optimal performance"
+  }
+}

@@ -1,9 +1,9 @@
 # Data Preparation Plan - Early Breast Cancer Detection
 ## MobileViTv3 + BUSI Dataset
 
-**Status**: Phase 1 COMPLETE - Ready for Phase 2 onwards  
+**Status**: Phases 1-7 COMPLETE - Ready for model training  
 **Target**: Split dataset ready for training model  
-**Timeline**: 4-6 days remaining (Phases 2-6)  
+**Timeline**: 7 days completed (Phases 1-7)
 **Architecture**: 3-channel tensors (NO FCM yet)
 
 ---
@@ -37,6 +37,7 @@ preprocessing/  ← ALL PREPROCESSING PHASES EXECUTED HERE
 │   ├── format_standardizer.py
 │   ├── augmentation.py
 │   ├── preprocessor.py (orchestrator)
+│   ├── sampler.py (Phase 7)
 │   └── utils.py
 ├── Phase Scripts (Execution):
 │   ├── phase2_class_weights.py ← Phase 2: Compute class weights
@@ -695,6 +696,260 @@ results/                                ← CREATE (if doesn't exist)
 
 ---
 
+# PHASE 7: CLASS IMBALANCE HANDLING & TRAINING PREPARATION
+**Duration**: 1-2 days  
+**Deliverables**: Sampler + Augmentation strategy for training
+
+## Problem Statement
+**Dataset Imbalance**:
+- Benign: 437 images (56.0%) - MAJORITY class
+- Malignant: 210 images (26.9%) - MINORITY class  
+- Normal: 133 images (17.1%) - MINORITY class
+- **Imbalance Ratio**: 3.29:1.58:1.00
+
+**Clinical Impact**: 
+Missing a malignant tumor (false negative) is far more costly than misclassifying a benign mass. The loss function must reflect this clinical reality.
+
+---
+
+## 7.1 - METHOD 1: CLASS WEIGHTS IN LOSS FUNCTION (REQUIRED)
+**Why**: Directly tells the model that misclassifying minority classes is more expensive
+
+**Implementation**:
+```python
+# Already computed in Phase 2:
+class_weights = {
+    'benign': 0.595,
+    'malignant': 1.238,
+    'normal': 1.955
+}
+
+# Use in training:
+import torch
+import torch.nn as nn
+from preprocessing import BUSIDataLoader
+
+loader = BUSIDataLoader(processed_dir='datasets/processed')
+train_dataset = loader.create_dataset('train', 'datasets/processed/manifests/train_manifest.txt')
+
+# Get class weights as tensor
+weights_tensor = torch.tensor([0.595, 1.238, 1.955])
+
+# Apply to loss function
+criterion = nn.CrossEntropyLoss(weight=weights_tensor)
+
+# In training loop:
+for batch in train_loader:
+    images = batch['image']
+    labels = batch['label']
+    
+    outputs = model(images)
+    loss = criterion(outputs, labels)  # Weighted loss
+    loss.backward()
+```
+
+**Benefit**: Simple, non-negotiable for medical imaging. Aligns with clinical cost of errors.
+
+---
+
+## 7.2 - METHOD 2: AUGMENTATION-BASED OVERSAMPLING (RECOMMENDED)
+**Why**: Increases diversity of minority class samples without pure duplication. Standard practice for small medical datasets.
+
+**Strategy**:
+1. Use `ClassAwareSampler` to oversample minority classes during batching
+2. Apply heavier augmentation to minority classes (malignant & normal)
+3. Apply lighter augmentation to majority class (benign)
+
+### File: `preprocessing/sampler.py` (NEW - Phase 7.1)
+**Code to create**:
+```python
+"""Class-aware sampler for augmentation-based oversampling"""
+import numpy as np
+from torch.utils.data import Sampler
+from typing import Iterator
+
+class ClassAwareSampler(Sampler):
+    """
+    Sampler that applies class-aware sampling probabilities
+    Minority classes (malignant, normal) sampled more frequently
+    Each epoch sees full dataset but distributed by class frequency inverse
+    """
+    
+    def __init__(self, dataset, num_samples=None):
+        """
+        Args:
+            dataset: BUSIDataset instance
+            num_samples: Total samples per epoch (None = len(dataset))
+        """
+        self.dataset = dataset
+        self.num_samples = num_samples or len(dataset)
+        
+        # Calculate inverse class frequencies (minority = higher probability)
+        unique_labels = np.unique(dataset.labels)
+        class_counts = np.bincount(dataset.labels)
+        
+        # Inverse weighting: higher count → lower probability
+        weights = 1.0 / class_counts
+        weights = weights / weights.sum()  # Normalize
+        
+        # Assign weight to each sample based on its class
+        self.weights = np.array([weights[label] for label in dataset.labels])
+        self.weights = self.weights / self.weights.sum()
+    
+    def __iter__(self) -> Iterator:
+        """Yields indices sampled according to class weights"""
+        indices = np.random.choice(
+            len(self.dataset),
+            size=self.num_samples,
+            replace=True,  # Allow repeats for upsampling
+            p=self.weights
+        )
+        return iter(indices.tolist())
+    
+    def __len__(self) -> int:
+        return self.num_samples
+```
+
+**Output Location**: `preprocessing/sampler.py`
+
+---
+
+### Update: `preprocessing/dataloader.py` (Phase 7.2)
+**Modify `__getitem__` to include class-specific augmentation**:
+
+```python
+def __getitem__(self, idx: int) -> Dict:
+    image_path = self.image_paths[idx]
+    label = self.labels[idx]
+    
+    # Load image
+    image = np.load(image_path)
+    
+    # Add augmentation flag for class-aware augmentation
+    if self._augmentation_enabled:
+        if label in [1, 2]:  # Malignant (1) or Normal (2) - MINORITY
+            # Heavier augmentation for minority classes
+            image = self._augment_aggressive(image)
+        else:  # Benign (0) - MAJORITY
+            # Lighter augmentation for majority class
+            image = self._augment_light(image)
+    
+    # Convert to torch tensor
+    image_tensor = torch.from_numpy(image).float()
+    
+    return {
+        'image': image_tensor,
+        'label': torch.tensor(label, dtype=torch.long)
+    }
+
+def _augment_aggressive(self, image: np.ndarray) -> np.ndarray:
+    """Heavier augmentation for minority classes (malignant, normal)"""
+    augmentation_config = {
+        'horizontal_flip': {'probability': 0.7},
+        'rotate': {'angle_range': (-20, 20), 'probability': 0.7},
+        'brightness_contrast': {'factor_range': (0.7, 1.3), 'probability': 0.6},
+        'translate': {'max_shift': 0.15, 'probability': 0.6}
+    }
+    return self.augmenter.augment(image, augmentation_config)
+
+def _augment_light(self, image: np.ndarray) -> np.ndarray:
+    """Lighter augmentation for majority class (benign)"""
+    augmentation_config = {
+        'horizontal_flip': {'probability': 0.3},
+        'rotate': {'angle_range': (-10, 10), 'probability': 0.3},
+        'brightness_contrast': {'factor_range': (0.85, 1.15), 'probability': 0.2},
+        'translate': {'max_shift': 0.05, 'probability': 0.2}
+    }
+    return self.augmenter.augment(image, augmentation_config)
+```
+
+---
+
+## 7.3 - TRAINING SETUP WITH BOTH METHODS
+**Complete training data loader setup**:
+
+```python
+from preprocessing import BUSIDataLoader
+from preprocessing.sampler import ClassAwareSampler
+import torch
+from torch.utils.data import DataLoader
+
+# Initialize loader and dataset
+loader = BUSIDataLoader(processed_dir='datasets/processed', batch_size=32)
+train_dataset = loader.create_dataset('train', 'datasets/processed/manifests/train_manifest.txt')
+
+# Enable augmentation in dataset
+train_dataset._augmentation_enabled = True
+
+# Method 1: Class weights for loss function
+class_weights = torch.tensor([0.595, 1.238, 1.955])
+criterion = torch.nn.CrossEntropyLoss(weight=class_weights)
+
+# Method 2: Class-aware sampler for oversampling
+sampler = ClassAwareSampler(train_dataset)
+
+# Create data loader with sampler
+train_loader = DataLoader(
+    train_dataset,
+    batch_size=32,
+    sampler=sampler,         # ← Class-aware sampling
+    num_workers=4,
+    pin_memory=True
+)
+
+# Validation/Test loaders (NO augmentation, NO special sampling)
+val_loader = loader.create_dataloader('val', 'datasets/processed/manifests/val_manifest.txt', shuffle=False)
+test_loader = loader.create_dataloader('test', 'datasets/processed/manifests/test_manifest.txt', shuffle=False)
+
+# Use in training loop:
+for epoch in range(num_epochs):
+    for batch in train_loader:
+        images = batch['image']
+        labels = batch['label']
+        
+        outputs = model(images)
+        loss = criterion(outputs, labels)  # Weighted loss + augmented minority classes
+        
+        loss.backward()
+        optimizer.step()
+```
+
+---
+
+## 7.4 - EXPECTED BENEFITS
+**Without imbalance handling:**
+- Model may ignore minority classes (especially 'normal')
+- High overall accuracy but poor minority class recall
+- Clinical failure: Miss malignant tumors (false negatives)
+
+**With both methods:**
+1. **Class weights**: Tell loss function minority misclassification is expensive
+2. **Oversampling + augmentation**: Expose model to more minority class variations
+3. **Result**: Balanced precision/recall across all classes, clinically appropriate
+
+**Expected Performance**:
+- Binign (majority): ~88-92% accuracy
+- Malignant (minority): ~85-90% accuracy  ← Most important
+- Normal (minority): ~80-87% accuracy     ← Second most important
+
+---
+
+## 7.5 - FILES TO CREATE/MODIFY
+
+**CREATE**:
+- `preprocessing/sampler.py` - ClassAwareSampler implementation
+- `training/imbalance_config.json` - Configuration for augmentation strategies
+
+**MODIFY**:
+- `preprocessing/dataloader.py` - Add augmentation-aware methods
+- `preprocessing/__init__.py` - Export ClassAwareSampler
+
+**Reference** (Already exists):
+- Class weights: `preprocessing/outputs/phase2_class_distribution.json`
+- Augmentation methods: `preprocessing/augmentation.py`
+
+---
+
 # EXECUTION CHECKLIST
 
 ## Phase 1: EDA (Day 1) → Notebook in `eda/`, Outputs in `eda/outputs/`
@@ -706,49 +961,170 @@ results/                                ← CREATE (if doesn't exist)
 - [x] 1.6: Create sample visualization → `eda/outputs/sample_images_grid.png` [DONE]
 
 ## Phase 2: Class Weights Analysis (Day 2) → Script in `preprocessing/`, Output in `preprocessing/outputs/`
-- [ ] 2.1: Compute class distribution + weights → `preprocessing/phase2_class_weights.py`
-- [ ] 2.1: Output JSON → `preprocessing/outputs/phase2_class_distribution.json`
-- [ ] 2.2: (Optional) Lesion coverage analysis
+- [x] 2.1: Compute class distribution + weights → `preprocessing/phase2_class_weights.py` [DONE]
+- [x] 2.1: Output JSON → `preprocessing/outputs/phase2_class_distribution.json` [DONE]
+- [x] 2.2: (Optional) Lesion coverage analysis [DONE]
 
 ## Phase 3: Preprocessing Infrastructure (Days 2-3) → All modules in `preprocessing/`
-- [ ] 3.1: Create/verify core module structure
-- [ ] 3.2: Implement format_standardizer.py
-- [ ] 3.2: Implement denoise.py (anisotropic diffusion)
-- [ ] 3.2: Implement contrast.py (CLAHE - may update existing)
-- [ ] 3.2: Implement normalization.py (ImageNet specs - may update existing)
-- [ ] 3.2: Implement resize.py (224×224 - may update existing)
-- [ ] 3.2: Implement augmentation.py
-- [ ] 3.3: Create preprocessor.py (main orchestrator)
-- [ ] 3.3: Create utils.py (helper functions)
+- [x] 3.1: Create/verify core module structure [DONE]
+- [x] 3.2: Implement format_standardizer.py [DONE]
+- [x] 3.2: Implement denoise.py (anisotropic diffusion) [DONE]
+- [x] 3.2: Implement contrast.py (CLAHE - may update existing) [DONE]
+- [x] 3.2: Implement normalization.py (ImageNet specs - may update existing) [DONE]
+- [x] 3.2: Implement resize.py (224×224 - may update existing) [DONE]
+- [x] 3.2: Implement augmentation.py [DONE]
+- [x] 3.3: Create preprocessor.py (main orchestrator) [DONE]
+- [x] 3.3: Create utils.py (helper functions) [DONE]
 
 ## Phase 4: Preprocessing Execution (Days 3-4) → Script in `preprocessing/`, Outputs in `datasets/processed/` & `preprocessing/outputs/`
-- [ ] 4.1: Create directory structure
-  - [ ] `datasets/processed/images/[benign|malignant|normal]/`
-  - [ ] `datasets/processed/masks/[benign|malignant|normal]/`
-  - [ ] `preprocessing/outputs/` (for logs)
-- [ ] 4.2: Run preprocessing script → `preprocessing/phase4_execute_preprocessing.py`
-- [ ] 4.2: Verify outputs → `preprocessing/outputs/phase4_preprocessing_log.json`
-- [ ] 4.3: Verify all 780 images processed successfully
+- [x] 4.1: Create directory structure [DONE]
+  - [x] `datasets/processed/images/[benign|malignant|normal]/` [DONE]
+  - [x] `datasets/processed/masks/[benign|malignant|normal]/` [DONE]
+  - [x] `preprocessing/outputs/` (for logs) [DONE]
+- [x] 4.2: Run preprocessing script → `preprocessing/phase4_execute_preprocessing.py` [DONE - 780/780 success]
+- [x] 4.2: Verify outputs → `preprocessing/outputs/phase4_preprocessing_log.json` [DONE]
+- [x] 4.3: Verify all 780 images processed successfully [DONE]
 
 ## Phase 5: Dataset Splitting (Days 4-5) → Script in `preprocessing/`, Manifests in `datasets/processed/manifests/`
-- [ ] 5.1: Create splitting script → `preprocessing/phase5_dataset_splitting.py`
-- [ ] 5.1: Perform stratified 70/15/15 split
-- [ ] 5.2: Create manifest files
-  - [ ] `datasets/processed/manifests/train_manifest.txt`
-  - [ ] `datasets/processed/manifests/val_manifest.txt`
-  - [ ] `datasets/processed/manifests/test_manifest.txt`
-- [ ] 5.3: Generate statistics → `preprocessing/outputs/phase5_split_statistics.json`
+- [x] 5.1: Create splitting script → `preprocessing/phase5_dataset_splitting.py` [DONE]
+- [x] 5.1: Perform stratified 70/15/15 split [DONE - 545/115/120]
+- [x] 5.2: Create manifest files [DONE]
+  - [x] `datasets/processed/manifests/train_manifest.txt` [DONE]
+  - [x] `datasets/processed/manifests/val_manifest.txt` [DONE]
+  - [x] `datasets/processed/manifests/test_manifest.txt` [DONE]
+- [x] 5.3: Generate statistics → `preprocessing/outputs/phase5_split_statistics.json` [DONE]
 
 ## Phase 6: Final Validation & Reports (Days 5-6) → Script in `preprocessing/`, Reports in `results/` & `preprocessing/outputs/`
-- [ ] 6.1: Create validation script → `preprocessing/phase6_validate_dataset.py`
-- [ ] 6.1: Verify split integrity (no leakage, all 780 assigned)
-- [ ] 6.2: Load and visualize test batches → `results/sample_batches_visualization.png`
-- [ ] 6.3: Finalize data loaders in `preprocessing/dataloader.py` (update if needed)
-- [ ] 6.4: Generate final reports:
-  - [ ] `preprocessing/outputs/phase6_validation_report.json`
-  - [ ] `results/final_data_report.json` (comprehensive summary)
+- [x] 6.1: Create validation script → `preprocessing/phase6_validate_dataset.py` [DONE]
+- [x] 6.1: Verify split integrity (no leakage, all 780 assigned) [DONE - 100% verified]
+- [x] 6.2: Load and visualize test batches → `results/sample_batches_visualization.png` [DONE]
+- [x] 6.3: Finalize data loaders in `preprocessing/dataloader.py` (update if needed) [DONE]
+- [x] 6.4: Generate final reports [DONE]:
+  - [x] `preprocessing/outputs/phase6_validation_report.json` [DONE]
+  - [x] `results/final_data_report.json` (comprehensive summary) [DONE]
+
+## Phase 7: Class Imbalance Handling (Days 6-7) → Files in `preprocessing/` & config in `training/`
+- [x] 7.1: Implement Method 1 - Class Weights (use Phase 2 weights in loss function) [DONE - config created]
+- [x] 7.2: Create ClassAwareSampler → `preprocessing/sampler.py` [DONE - ClassAwareSampler + WeightedRandomSampler]
+- [x] 7.2: Update DataLoader augmentation methods → `preprocessing/dataloader.py` [DONE - _augment_aggressive() + _augment_light()]
+- [x] 7.3: Create training configuration template → `training/imbalance_config.json` [DONE - comprehensive config]
+- [x] 7.4: Document metrics to track (precision, recall, F1 per class) [DONE - documented in config]
+- [x] 7.5: Update `preprocessing/__init__.py` to export sampler [DONE - exported ClassAwareSampler]
 
 ---
 
-**Total Timeline**: 5-7 days  
-**Ready for Training**: Yes, after Phase 6 complete
+**Total Timeline**: 7 days completed ✅  
+**Ready for Training**: Yes, all phases complete - dataset fully prepared with class imbalance handling
+
+---
+
+# PHASE 7 COMPLETION SUMMARY
+
+## Files Created (Phase 7)
+
+### 1. `preprocessing/sampler.py`
+- **ClassAwareSampler**: Inverse frequency weighting for minority class oversampling
+- **WeightedRandomSampler**: Alternative sampler with custom weight specification
+- Enables sampling with replacement to expose model to minority variations
+
+### 2. `training/imbalance_config.json`
+- Complete configuration template for class imbalance handling
+- Method 1 (Class Weights): Pre-computed in Phase 2, to be used in CrossEntropyLoss
+- Method 2 (Augmentation-Based Oversampling): Configuration for aggressive vs. light augmentation
+- Training setup examples and expected outcomes documented
+
+## Files Modified (Phase 7)
+
+### 1. `preprocessing/dataloader.py`
+- Added `DataAugmenter` import from augmentation module
+- Added `_augmentation_enabled` flag to BUSIDataset (default=False, set to True for training)
+- Added `self.augmenter = DataAugmenter()` attribute
+- Modified `__getitem__()` to apply class-aware augmentation:
+  - Minority classes (malignant=1, normal=2): `_augment_aggressive()` (70% flip, 70% rotate±20°, 60% brightness±30%, 60% translate±15%)
+  - Majority class (benign=0): `_augment_light()` (30% flip, 30% rotate±10°, 20% brightness±15%, 20% translate±5%)
+- Added `_augment_aggressive()` method with aggressive augmentation config
+- Added `_augment_light()` method with light augmentation config
+
+### 2. `preprocessing/__init__.py`
+- Added import: `from .sampler import ClassAwareSampler, WeightedRandomSampler`
+- Added exports: `ClassAwareSampler`, `WeightedRandomSampler` to `__all__`
+- Both samplers now accessible via: `from preprocessing import ClassAwareSampler`
+
+## How to Use Phase 7 in Training
+
+```python
+from preprocessing import BUSIDataLoader, ClassAwareSampler
+from torch.utils.data import DataLoader
+import torch
+import torch.nn as nn
+
+# Initialize loader
+loader = BUSIDataLoader(processed_dir='datasets/processed', batch_size=32)
+
+# Create training dataset with augmentation ENABLED
+train_dataset = loader.create_dataset('train', 'datasets/processed/manifests/train_manifest.txt')
+train_dataset._augmentation_enabled = True  # ← Enable class-aware augmentation
+
+# Method 1: Class Weights (from Phase 2)
+class_weights = torch.tensor([0.595, 1.238, 1.955])
+criterion = nn.CrossEntropyLoss(weight=class_weights)
+
+# Method 2: Class-Aware Sampler (from Phase 7)
+sampler = ClassAwareSampler(train_dataset)
+train_loader = DataLoader(
+    train_dataset,
+    batch_size=32,
+    sampler=sampler,           # ← Uses inverse frequency weighting
+    num_workers=4,
+    pin_memory=True
+)
+
+# Validation/Test loaders (no augmentation, no special sampling)
+val_loader = loader.create_dataloader('val', 'datasets/processed/manifests/val_manifest.txt', shuffle=False)
+test_loader = loader.create_dataloader('test', 'datasets/processed/manifests/test_manifest.txt', shuffle=False)
+
+# Training loop
+for epoch in range(num_epochs):
+    for batch in train_loader:
+        images = batch['image']
+        labels = batch['label']
+        
+        outputs = model(images)
+        loss = criterion(outputs, labels)  # Weighted loss + augmented minority classes
+        
+        loss.backward()
+        optimizer.step()
+```
+
+## Expected Benefits
+
+**Without Imbalance Handling:**
+- Model ignores minority classes
+- High overall accuracy but poor minority recall
+- Clinical failure: Miss malignant tumors
+
+**With Both Methods (Phase 7):**
+- Benign (majority): ~88-92% accuracy
+- Malignant (minority): ~85-90% accuracy ← **CRITICAL**
+- Normal (minority): ~80-87% accuracy
+- Balanced F1 scores across all classes
+- Clinically appropriate: Catches malignant cases
+
+## Key Metrics to Track During Training
+
+- Per-class precision, recall, F1 score
+- Overall accuracy
+- Class-weighted accuracy
+- Confusion matrix showing false negatives (most critical for medical imaging)
+- ROC-AUC per class
+
+## Files Unchanged but Used in Phase 7
+
+- `preprocessing/augmentation.py` - DataAugmenter methods used by class-aware strategies
+- `preprocessing/outputs/phase2_class_distribution.json` - Class weights source
+- `datasets/processed/images/` - Pre-processed images (unchanged)
+- `datasets/processed/manifests/` - Train/val/test splits (unchanged)
+
+---
+
+**STATUS**: ✅ All data preparation complete. Dataset ready for training with clinically-appropriate class imbalance handling methods implemented.
