@@ -1,0 +1,22 @@
+# Exp5: Small batch + AdamW + Warmup — no early stopping
+# Goal: smaller batches increase gradient noise which can improve generalization
+#       on small datasets; LR scaled down proportionally (linear scaling rule)
+
+batch_size: 16
+epochs: 100
+learning_rate: 0.00025
+weight_decay: 0.01
+optimizer: adamw
+scheduler: warmup_cosine
+warmup_epochs: 5
+label_smoothing: 0.05
+mixed_precision: true
+early_stopping:
+  enabled: false
+  patience: 10
+  min_delta: 0.001
+checkpoint_dir: training/checkpoints/exp5
+log_dir: training/logs/exp5
+wandb:
+  enabled: true
+  project: MobileFCMViTv3

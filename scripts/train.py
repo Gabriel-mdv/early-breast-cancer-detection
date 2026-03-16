@@ -11,7 +11,8 @@ import torch
 
 def main():
     parser = argparse.ArgumentParser(description='Train MobileFCMViTv3')
-    parser.add_argument('--config_dir', type=str, default='config/', help='Path to config directory')
+    parser.add_argument('--config_dir', type=str, default='config/')
+    parser.add_argument('--run_name', type=str, default=None, help='WandB run name and checkpoint subdir')
     args = parser.parse_args()
 
     # Load configs
@@ -41,6 +42,11 @@ def main():
     if torch.cuda.device_count() > 1:
         print(f"Using {torch.cuda.device_count()} GPUs with DataParallel.")
         model = torch.nn.DataParallel(model)
+
+    # Per-experiment checkpoint dir and WandB run name
+    if args.run_name:
+        training_config.checkpoint_dir = f"training/checkpoints/{args.run_name}"
+        training_config.wandb['run_name'] = args.run_name
 
     # Training
     trainer = Trainer(model, train_loader, val_loader, training_config, device)

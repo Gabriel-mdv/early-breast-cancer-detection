@@ -2,46 +2,42 @@ import torch
 import torch.nn as nn
 from .layers import ConvBNAct, TransformerEncoderBlock
 
+
 class MobileViTBlock(nn.Module):
     def __init__(self, in_channels, transformer_dim, patch_size, num_heads, mlp_ratio=4):
         super().__init__()
-        self.local_conv = ConvBNAct(in_channels, in_channels, 3, padding=1)
         self.patch_size = patch_size
-        self.proj_in = nn.Linear(in_channels * patch_size * patch_size, transformer_dim)
+        self.local_conv = ConvBNAct(in_channels, in_channels, 3, padding=1)
+        self.proj_in = nn.Linear(in_channels, transformer_dim)
         self.transformer = TransformerEncoderBlock(transformer_dim, num_heads, mlp_ratio)
-        self.proj_out = nn.Linear(transformer_dim, in_channels * patch_size * patch_size)
-        # folded has in_channels * patch_size * patch_size channels after fold_patches
-        fusion_in_channels = in_channels + in_channels * patch_size * patch_size
-        self.fusion_conv = ConvBNAct(fusion_in_channels, in_channels, 1)
-
-    def unfold_patches(self, x):
-        B, C, H, W = x.shape
-        x = x.view(B, C, H // self.patch_size, self.patch_size, W // self.patch_size, self.patch_size)
-        x = x.permute(0, 2, 4, 1, 3, 5).contiguous()
-        x = x.view(B, -1, C * self.patch_size * self.patch_size)
-        return x
-
-    def fold_patches(self, x, H, W):
-        B, num_patches, patch_dim = x.shape
-        x = x.view(B, H // self.patch_size, W // self.patch_size, patch_dim)
-        x = x.permute(0, 3, 1, 2).contiguous()
-        return x
+        self.proj_out = nn.Linear(transformer_dim, in_channels)
+        self.fusion_conv = ConvBNAct(2 * in_channels, in_channels, 1)
 
     def forward(self, x):
-        import torch.nn.functional as F
+        B, C, H, W = x.shape
+        P = self.patch_size
+        assert H % P == 0 and W % P == 0, f"Spatial size ({H},{W}) must be divisible by patch_size {P}"
+
         local_feat = self.local_conv(x)
-        B, C, H, W = local_feat.shape
-        patches = self.unfold_patches(local_feat)
-        patches_proj = self.proj_in(patches)  # [B, num_patches, transformer_dim]
-        transformer_feat = self.transformer(patches_proj)
-        patches_recon = self.proj_out(transformer_feat)  # [B, num_patches, patch_dim]
-        folded = self.fold_patches(patches_recon, H, W)
-        # Upsample folded to match local_feat spatial size if needed
-        if folded.shape[2:] != local_feat.shape[2:]:
-            folded = F.interpolate(folded, size=local_feat.shape[2:], mode='bilinear', align_corners=False)
-        print(f"local_feat.shape: {local_feat.shape}, folded.shape: {folded.shape}")
-        assert local_feat.shape[0] == folded.shape[0], f"Batch size mismatch: {local_feat.shape[0]} vs {folded.shape[0]}"
-        assert local_feat.shape[2:] == folded.shape[2:], f"Spatial size mismatch: {local_feat.shape[2:]} vs {folded.shape[2:]}"
-        fused = torch.cat([local_feat, folded], dim=1)
-        out = self.fusion_conv(fused)
+
+        # Unfold: (B, C, H, W) -> (B*num_patches, pixels_per_patch, C)
+        # num_patches = (H/P)*(W/P), pixels_per_patch = P*P
+        nh, nw = H // P, W // P
+        # reshape to (B, C, nh, P, nw, P) then group patches
+        xp = local_feat.view(B, C, nh, P, nw, P)
+        xp = xp.permute(0, 2, 4, 3, 5, 1).contiguous()   # (B, nh, nw, P, P, C)
+        xp = xp.view(B * nh * nw, P * P, C)               # (B*num_patches, pixels, C)
+
+        # Transformer over pixels within each patch
+        xp = self.proj_in(xp)                              # (B*num_patches, pixels, transformer_dim)
+        xp = self.transformer(xp)
+        xp = self.proj_out(xp)                             # (B*num_patches, pixels, C)
+
+        # Fold back: (B*num_patches, P*P, C) -> (B, C, H, W)
+        xp = xp.view(B, nh, nw, P, P, C)
+        xp = xp.permute(0, 5, 1, 3, 2, 4).contiguous()   # (B, C, nh, P, nw, P)
+        xp = xp.view(B, C, H, W)
+
+        # Fuse local conv features with global transformer features
+        out = self.fusion_conv(torch.cat([local_feat, xp], dim=1))
         return out

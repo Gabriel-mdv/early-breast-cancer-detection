@@ -1,0 +1,11 @@
+# Dataset configuration for MobileFCMViTv3
+
+name: breast_ultrasound
+input_dir: datasets/raw
+output_dir: datasets/processed
+formats: [png, jpg, dicom]
+split:
+  train: 0.7
+  val: 0.15
+  test: 0.15
+random_seed: 42

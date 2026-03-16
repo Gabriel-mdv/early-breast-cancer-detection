@@ -1,10 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=training
-#SBATCH --partition=preempt
+#SBATCH --partition=general
 #SBATCH --gres=gpu:4
 #SBATCH --cpus-per-task=3
 #SBATCH --mem=92G
-#SBATCH --time=24:00:00
+#SBATCH --time=4:00:00
+#SBATCH --qos=normal
 #SBATCH --output=/home/jgibson2/projects/MobileFCMVitv3/slurm_logs/%x_%j.out
 #SBATCH --error=/home/jgibson2/projects/MobileFCMVitv3/slurm_logs/%x_%j.err
 #SBATCH --signal=B:SIGTERM@120
@@ -30,11 +31,12 @@ mkdir -p $SLURM_LOG_DIR
 
 export PYTHONPATH=$PROJECT_DIR:$PYTHONPATH
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-export DATALOADER_NUM_WORKERS=0
 
 
 # ---- Run training ----
-echo "Running training script..."
-PYTHONPATH=$PROJECT_DIR python scripts/train.py --config_dir config/
+CONFIG_DIR=${1:-config/}
+RUN_NAME=${2:-baseline}
+echo "Running training: config=$CONFIG_DIR run=$RUN_NAME"
+PYTHONPATH=$PROJECT_DIR python scripts/train.py --config_dir $CONFIG_DIR --run_name $RUN_NAME
 
 echo "Job finished at $(date)"

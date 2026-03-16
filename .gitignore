@@ -2,3 +2,4 @@ slurm_logs/
 slurm_scripts/
 datasets/
 wandb/
+results/

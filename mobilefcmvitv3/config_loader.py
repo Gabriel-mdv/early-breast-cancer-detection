@@ -24,6 +24,9 @@ class TrainingConfig:
     checkpoint_dir: str
     log_dir: str
     wandb: dict
+    weight_decay: float = 0.0
+    label_smoothing: float = 0.0
+    warmup_epochs: int = 0
 
 @dataclass
 class ModelConfig:

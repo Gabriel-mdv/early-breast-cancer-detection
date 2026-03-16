@@ -1,0 +1,21 @@
+# Exp3: SGD + Step LR — no early stopping
+# Goal: compare adaptive vs classical optimizer on this architecture
+
+batch_size: 32
+epochs: 100
+learning_rate: 0.01
+weight_decay: 0.0001
+optimizer: sgd
+scheduler: step
+warmup_epochs: 0
+label_smoothing: 0.0
+mixed_precision: true
+early_stopping:
+  enabled: false
+  patience: 10
+  min_delta: 0.001
+checkpoint_dir: training/checkpoints/exp3
+log_dir: training/logs/exp3
+wandb:
+  enabled: true
+  project: MobileFCMViTv3

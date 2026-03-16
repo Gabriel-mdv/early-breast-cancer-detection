@@ -15,7 +15,7 @@ class Trainer:
         self.val_loader = val_loader
         self.config = config
         self.device = device
-        wandb.init(project=config.wandb['project'])
+        wandb.init(project=config.wandb['project'], name=config.wandb.get('run_name', None))
         self.loop = TrainingLoop(model, train_loader, val_loader, config, device)
 
     def train(self):

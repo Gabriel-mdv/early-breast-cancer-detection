@@ -19,18 +19,18 @@ class MBConv(nn.Module):
         self.project = nn.Conv2d(hidden_dim, out_channels, 1, bias=False)
         self.bn = nn.BatchNorm2d(out_channels)
         self.act = nn.ReLU()
+        self.residual = nn.Conv2d(in_channels, out_channels, 1, bias=False) if in_channels != out_channels else nn.Identity()
     def forward(self, x):
-        x = self.expand(x)
-        x = self.depthwise(x)
-        x = self.project(x)
-        x = self.bn(x)
-        return self.act(x)
+        out = self.expand(x)
+        out = self.depthwise(out)
+        out = self.act(self.bn(self.project(out)))
+        return out + self.residual(x)
 
 class TransformerEncoderBlock(nn.Module):
     def __init__(self, dim, num_heads, mlp_ratio=4):
         super().__init__()
         self.norm1 = nn.LayerNorm(dim)
-        self.attn = nn.MultiheadAttention(dim, num_heads)
+        self.attn = nn.MultiheadAttention(dim, num_heads, batch_first=True)
         self.norm2 = nn.LayerNorm(dim)
         self.mlp = nn.Sequential(
             nn.Linear(dim, dim * mlp_ratio),
@@ -38,10 +38,8 @@ class TransformerEncoderBlock(nn.Module):
             nn.Linear(dim * mlp_ratio, dim)
         )
     def forward(self, x):
-        x = self.norm1(x)
-        x, _ = self.attn(x, x, x)
-        x = self.norm2(x)
-        x = self.mlp(x)
+        x = x + self.attn(self.norm1(x), self.norm1(x), self.norm1(x))[0]
+        x = x + self.mlp(self.norm2(x))
         return x
 
 class AttentionFusion(nn.Module):

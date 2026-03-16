@@ -1,0 +1,21 @@
+# Exp4: AdamW + Label Smoothing + Warmup Cosine — no early stopping
+# Goal: combine weight decay, label smoothing, and warmup for maximum regularization
+
+batch_size: 32
+epochs: 100
+learning_rate: 0.0003
+weight_decay: 0.05
+optimizer: adamw
+scheduler: warmup_cosine
+warmup_epochs: 10
+label_smoothing: 0.1
+mixed_precision: true
+early_stopping:
+  enabled: false
+  patience: 10
+  min_delta: 0.001
+checkpoint_dir: training/checkpoints/exp4
+log_dir: training/logs/exp4
+wandb:
+  enabled: true
+  project: MobileFCMViTv3

@@ -3,6 +3,7 @@ Training loop for MobileFCMViTv3.
 """
 
 import torch
+import wandb
 from typing import Any
 from tqdm import tqdm
 from .losses import get_loss
@@ -21,10 +22,14 @@ class TrainingLoop:
         class_weights = None
         if hasattr(train_loader.dataset, 'get_class_weights'):
             class_weights = train_loader.dataset.get_class_weights().to(device)
-        self.loss_fn = get_loss(class_weights=class_weights)
+        self.loss_fn = get_loss(
+            class_weights=class_weights,
+            label_smoothing=getattr(config, 'label_smoothing', 0.0)
+        )
         self.optimizer = get_optimizer(model, config)
         self.scheduler = get_scheduler(self.optimizer, config)
-        self.early_stopping = EarlyStopping(config.early_stopping['patience'], config.early_stopping['min_delta'])
+        es_cfg = config.early_stopping
+        self.early_stopping = EarlyStopping(es_cfg['patience'], es_cfg['min_delta']) if es_cfg.get('enabled', True) else None
         self.checkpoint = ModelCheckpoint(config.checkpoint_dir)
 
     def run(self):
@@ -47,13 +52,15 @@ class TrainingLoop:
             avg_train_loss = train_loss / len(self.train_loader)
             avg_val_loss = val_loss / len(self.val_loader)
             pbar.set_postfix(train_loss=f'{avg_train_loss:.4f}', val_loss=f'{avg_val_loss:.4f}')
+            wandb.log({'train/loss': avg_train_loss, 'val/loss': avg_val_loss, 'epoch': epoch + 1})
             self.scheduler.step()
-            if val_loss < self.early_stopping.best_loss:
+            if val_loss < (self.early_stopping.best_loss if self.early_stopping else float('inf')):
                 self.checkpoint.save(self.model)
-            self.early_stopping(val_loss)
-            if self.early_stopping.early_stop:
-                print('Early stopping triggered.')
-                break
+            if self.early_stopping:
+                self.early_stopping(val_loss)
+                if self.early_stopping.early_stop:
+                    print('Early stopping triggered.')
+                    break
 
     def validate(self):
         self.model.eval()

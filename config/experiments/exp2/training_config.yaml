@@ -1,0 +1,21 @@
+# Exp2: Adam + Label Smoothing — no early stopping
+# Goal: reduce overconfidence with label smoothing on a small dataset
+
+batch_size: 32
+epochs: 100
+learning_rate: 0.001
+weight_decay: 0.0
+optimizer: adam
+scheduler: cosine
+warmup_epochs: 0
+label_smoothing: 0.1
+mixed_precision: true
+early_stopping:
+  enabled: false
+  patience: 10
+  min_delta: 0.001
+checkpoint_dir: training/checkpoints/exp2
+log_dir: training/logs/exp2
+wandb:
+  enabled: true
+  project: MobileFCMViTv3

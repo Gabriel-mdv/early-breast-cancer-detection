@@ -223,28 +223,14 @@ class BUSIDataLoader:
                  processed_dir: Union[str, Path],
                  mask_dir: Optional[Union[str, Path]] = None,
                  batch_size: int = 32,
-                 num_workers: int = 4,
+                 num_workers: int = 0,
                  shuffle_train: bool = True,
                  class_labels: Optional[Dict[str, int]] = None):
-        """
-        Initialize DataLoader wrapper
-        
-        Args:
-            processed_dir: Directory containing preprocessed images
-            mask_dir: Directory containing masks
-            batch_size: Batch size
-            num_workers: Number of workers for data loading
-            shuffle_train: Whether to shuffle training data
-            class_labels: Class label mapping
-        """
         self.processed_dir = Path(processed_dir)
         self.mask_dir = Path(mask_dir) if mask_dir else None
         self.batch_size = batch_size
-        import os
-        max_workers = len(os.sched_getaffinity(0)) if hasattr(os, 'sched_getaffinity') else os.cpu_count()
-        env_override = int(os.environ.get('DATALOADER_NUM_WORKERS', num_workers))
-        self.num_workers = min(env_override, max_workers)
-        self.pin_memory = self.num_workers > 0
+        self.num_workers = num_workers
+        self.pin_memory = num_workers > 0
         self.class_labels = class_labels or {
             'benign': 0,
             'malignant': 1,
@@ -303,7 +289,7 @@ class BUSIDataLoader:
                 sampler=sampler,
                 num_workers=self.num_workers,
                 pin_memory=self.pin_memory,
-                persistent_workers=self.num_workers > 0
+                drop_last=True
             )
         else:
             dataloader = DataLoader(
@@ -311,8 +297,7 @@ class BUSIDataLoader:
                 batch_size=self.batch_size,
                 shuffle=shuffle,
                 num_workers=self.num_workers,
-                pin_memory=self.pin_memory,
-                persistent_workers=self.num_workers > 0
+                pin_memory=self.pin_memory
             )
         return dataloader
     
