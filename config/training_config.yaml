@@ -1,0 +1,16 @@
+# Training configuration for MobileFCMViTv3
+
+batch_size: 32
+epochs: 100
+learning_rate: 0.001
+optimizer: adam
+scheduler: cosine
+mixed_precision: true
+early_stopping:
+  patience: 10
+  min_delta: 0.001
+checkpoint_dir: training/checkpoints
+log_dir: training/logs
+wandb:
+  enabled: true
+  project: MobileFCMViTv3
