@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=evaluation
+#SBATCH --job-name=evaluation_exp_6
 #SBATCH --partition=preempt
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=3
@@ -18,7 +18,7 @@ source venv/bin/activate
 
 PROJECT_DIR=/home/jgibson2/projects/MobileFCMVitv3
 mkdir -p $PROJECT_DIR/slurm_logs
-mkdir -p $PROJECT_DIR/results
+mkdir -p $PROJECT_DIR/results/experiment_6
 
 export PYTHONPATH=$PROJECT_DIR:$PYTHONPATH
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
@@ -26,7 +26,7 @@ export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 echo "Running evaluation script..."
 PYTHONPATH=$PROJECT_DIR python scripts/evaluate.py \
     --config_dir config/ \
-    --checkpoint training/checkpoints/best_model.pt \
-    --save_dir results
+    --checkpoint training/checkpoints/exp6/best_model.pt \
+    --save_dir results/experiment_6
 
 echo "Job finished at $(date)"

@@ -1,4 +1,24 @@
 # Data Preparation Plan - Early Breast Cancer Detection
+---
+## Dataset Description
+- **BUSI Dataset**: Breast ultrasound images, labeled as benign, malignant, normal
+- **Structure**: `datasets/benign/`, `datasets/malignant/`, `datasets/normal/`, `datasets/processed/`
+- **Masks**: Segmentation masks for region annotation
+- **Splits**: Train, validation, test splits defined in `config/dataset_config.yaml`
+- **Preprocessing**: Denoising, normalization, resizing, augmentation
+
+## Folder Structure
+See below for the final folder structure and code locations for each phase.
+
+## Preparation Steps
+1. Organize images and masks in the datasets/ directory
+2. Configure dataset paths and splits in `config/dataset_config.yaml`
+3. Run preprocessing scripts in `preprocessing/` for denoising, normalization, resizing, augmentation
+4. Validate processed data in `eda/` and `preprocessing/`
+5. Ensure all phases are complete before training
+
+---
+# Data Preparation Plan - Early Breast Cancer Detection
 ## MobileViTv3 + BUSI Dataset
 
 **Status**: Phases 1-7 COMPLETE - Ready for model training  

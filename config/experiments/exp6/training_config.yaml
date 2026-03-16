@@ -1,0 +1,22 @@
+# Exp6 corrected: exp4 regularization + exp5 batch size with proper LR scaling
+# Linear scaling rule: batch 16 vs exp4's 32 → LR halved (3e-4 → 1.5e-4)
+# FCM dropout reduced to 0.1 to avoid stacking too many regularizers
+
+batch_size: 16
+epochs: 100
+learning_rate: 0.00015
+weight_decay: 0.05
+optimizer: adamw
+scheduler: warmup_cosine
+warmup_epochs: 10
+label_smoothing: 0.1
+mixed_precision: true
+early_stopping:
+  enabled: false
+  patience: 10
+  min_delta: 0.001
+checkpoint_dir: training/checkpoints/exp6
+log_dir: training/logs/exp6
+wandb:
+  enabled: true
+  project: MobileFCMViTv3

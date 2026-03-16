@@ -1,3 +1,47 @@
+---
+# Experiment Setup: Step-by-Step Guide
+
+## 1. Dataset Preparation
+- Organize ultrasound images in `datasets/benign/`, `datasets/malignant/`, `datasets/normal/`, and masks.
+- Use `config/dataset_config.yaml` to define paths, splits, and augmentation.
+- Preprocessing scripts in `preprocessing/` handle denoising, normalization, resizing, and augmentation.
+
+## 2. Configuration
+- Edit YAML files in `config/`:
+	- `dataset_config.yaml`: dataset paths, splits, augmentation
+	- `training_config.yaml`: epochs, batch size, optimizer, scheduler, experiment tracking
+	- `model_config.yaml`: model architecture, parameters
+
+## 3. Preprocessing Pipeline
+- Configure steps in `preprocessing/preprocessing_pipeline.py`.
+- Enable/disable denoising, normalization, resizing, enhancement, advanced methods.
+
+## 4. Experiment Tracking
+- Supported platforms: Weights & Biases, MLflow, Neptune
+- Set API keys in environment variables or config
+- Enable tracking in `training_config.yaml`
+
+## 5. Custom Workflows
+- Edit or add scripts in `training/custom_workflows.py` for ablation studies, baseline comparisons, advanced experiments.
+
+## 6. Running Experiments
+- Use CLI scripts:
+	```bash
+	python scripts/train.py --config_dir config/
+	python scripts/evaluate.py --config_dir config/
+	```
+- Results saved in `results/`
+
+## 7. Logging & Visualization
+- Metrics, losses, predictions, confusion matrix, ROC, Grad-CAM visualizations
+- Use experiment tracking dashboards for monitoring
+
+## 8. Troubleshooting
+- Check logs in `results/` and experiment tracking platform
+- Verify dataset paths and config parameters
+- For CUDA errors, check GPU setup and PyTorch installation
+
+---
 ## Experiment Setup Guide
 
 ### 1. Dataset Preparation
