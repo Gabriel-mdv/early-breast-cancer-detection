@@ -17,12 +17,29 @@ def main():
     parser.add_argument('--tflite_path', type=str, default='export/model.tflite')
     parser.add_argument('--quantized_path', type=str, default='export/model_quant.tflite')
     args = parser.parse_args()
-    # ...model setup...
-    # export_to_onnx(model, tuple(args.input_shape), args.onnx_path)
-    # convert_onnx_to_tf(args.onnx_path, args.tf_path)
-    # convert_tf_to_tflite(args.tf_path, args.tflite_path)
-    # quantize_tflite_model(args.tflite_path, args.quantized_path)
-    print('Model export started.')
+
+    # Load configs
+    from mobilefcmvitv3.config_loader import ConfigLoader
+    config_loader = ConfigLoader('config/')
+    model_config = config_loader.load_model_config()
+
+    # Model setup
+    from models.mobilefcmvitv3 import MobileFCMViTv3
+    import torch
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = MobileFCMViTv3(model_config).to(device)
+
+    # Export steps
+    from export.export_onnx import export_to_onnx
+    from export.convert_to_tf import convert_onnx_to_tf
+    from export.convert_to_tflite import convert_tf_to_tflite
+    from export.quantization import quantize_tflite_model
+
+    export_to_onnx(model, tuple(args.input_shape), args.onnx_path)
+    convert_onnx_to_tf(args.onnx_path, args.tf_path)
+    convert_tf_to_tflite(args.tf_path, args.tflite_path)
+    quantize_tflite_model(args.tflite_path, args.quantized_path)
+    print('Model export finished.')
 
 if __name__ == '__main__':
     main()

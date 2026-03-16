@@ -278,9 +278,18 @@ class ImagePreprocessor:
             json.dump(self.config, f, indent=2)
     
     def load_config(self, config_path: Union[str, Path]):
-        """Load configuration from JSON"""
-        with open(config_path, 'r') as f:
-            self.config = json.load(f)
+        """Load configuration from JSON or YAML"""
+        config_path = Path(config_path)
+        if config_path.suffix in ['.yaml', '.yml']:
+            try:
+                import yaml
+            except ImportError:
+                raise ImportError("pyyaml is required for YAML config loading. Please install it.")
+            with open(config_path, 'r') as f:
+                self.config = yaml.safe_load(f)
+        else:
+            with open(config_path, 'r') as f:
+                self.config = json.load(f)
     
     def get_pipeline_info(self) -> Dict:
         """Get information about current pipeline configuration"""

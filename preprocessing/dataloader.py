@@ -65,13 +65,14 @@ class BUSIDataset(Dataset):
                     line = line.strip()
                     if line:
                         parts = line.split(',')
-                        image_path = self.image_dir / parts[0]
+                        rel_img_path = Path(parts[0])
+                        if rel_img_path.parts[0] == 'images':
+                            rel_img_path = Path(*rel_img_path.parts[1:])
+                        image_path = self.image_dir / rel_img_path
                         label = int(parts[1])
-                        
                         if image_path.exists():
                             self.image_paths.append(image_path)
                             self.labels.append(label)
-                            
                             if self.mask_dir:
                                 mask_path = self.mask_dir / f"{image_path.stem}_mask.npy"
                                 self.mask_paths.append(mask_path if mask_path.exists() else None)
