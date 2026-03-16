@@ -4,8 +4,11 @@ Loss functions for training.
 
 import torch.nn as nn
 
-def get_loss(loss_name: str = 'cross_entropy') -> nn.Module:
+def get_loss(loss_name: str = 'cross_entropy', class_weights=None) -> nn.Module:
     if loss_name == 'cross_entropy':
-        return nn.CrossEntropyLoss()
+        if class_weights is not None:
+            return nn.CrossEntropyLoss(weight=class_weights)
+        else:
+            return nn.CrossEntropyLoss()
     else:
         raise ValueError(f"Unsupported loss: {loss_name}")

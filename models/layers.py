@@ -47,9 +47,10 @@ class TransformerEncoderBlock(nn.Module):
 class AttentionFusion(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
-        self.conv = nn.Conv2d(in_channels, out_channels, 1)
+        self.conv = nn.Conv2d(in_channels, in_channels, 1)
+        self.proj = nn.Conv2d(in_channels, out_channels, 1)
         self.sigmoid = nn.Sigmoid()
     def forward(self, x1, x2):
         fusion = torch.cat([x1, x2], dim=1)
         attn = self.sigmoid(self.conv(fusion))
-        return fusion * attn
+        return self.proj(fusion * attn)

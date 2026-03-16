@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name=training
 #SBATCH --partition=preempt
-#SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=32G
+#SBATCH --gres=gpu:4
+#SBATCH --cpus-per-task=3
+#SBATCH --mem=92G
 #SBATCH --time=24:00:00
 #SBATCH --output=/home/jgibson2/projects/MobileFCMVitv3/slurm_logs/%x_%j.out
 #SBATCH --error=/home/jgibson2/projects/MobileFCMVitv3/slurm_logs/%x_%j.err
@@ -30,7 +30,7 @@ mkdir -p $SLURM_LOG_DIR
 
 export PYTHONPATH=$PROJECT_DIR:$PYTHONPATH
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-export CUDA_VISIBLE_DEVICES=0
+export DATALOADER_NUM_WORKERS=0
 
 
 # ---- Run training ----

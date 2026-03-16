@@ -16,11 +16,16 @@ n_clusters = 3  # or set as needed
 # Helper to process one image file
 def compute_fcm_features(image_path, n_clusters=3):
     img = np.load(image_path)
+    # Reduce to 2D grayscale regardless of input shape
+    if img.ndim == 3:
+        img = img[..., 0]  # take first channel
+    elif img.ndim > 3:
+        img = img.reshape(img.shape[0], img.shape[1])
     flat = img.flatten().reshape(-1, 1)
     fcm = FuzzyCMeans(n_clusters=n_clusters)
     fcm.fit(flat)
-    membership = fcm.get_membership_map(flat)  # shape: (num_pixels, n_clusters)
-    membership_map = membership.reshape(img.shape + (n_clusters,))
+    membership = fcm.get_membership_map(flat)  # shape: (H*W, n_clusters)
+    membership_map = membership.reshape(img.shape[0], img.shape[1], n_clusters)  # (H, W, n_clusters)
     return membership_map
 
 # Process all images

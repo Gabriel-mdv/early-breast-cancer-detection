@@ -4,6 +4,7 @@ Training loop for MobileFCMViTv3.
 
 import torch
 from typing import Any
+from tqdm import tqdm
 from .losses import get_loss
 from .optimizer import get_optimizer
 from .scheduler import get_scheduler
@@ -16,7 +17,11 @@ class TrainingLoop:
         self.val_loader = val_loader
         self.config = config
         self.device = device
-        self.loss_fn = get_loss()
+        # Use class weights if available from train_loader.dataset
+        class_weights = None
+        if hasattr(train_loader.dataset, 'get_class_weights'):
+            class_weights = train_loader.dataset.get_class_weights().to(device)
+        self.loss_fn = get_loss(class_weights=class_weights)
         self.optimizer = get_optimizer(model, config)
         self.scheduler = get_scheduler(self.optimizer, config)
         self.early_stopping = EarlyStopping(config.early_stopping['patience'], config.early_stopping['min_delta'])
@@ -26,15 +31,22 @@ class TrainingLoop:
         for epoch in range(self.config.epochs):
             self.model.train()
             train_loss = 0
-            for imgs, fcm_feats, labels in self.train_loader:
-                imgs, fcm_feats, labels = imgs.to(self.device), fcm_feats.to(self.device), labels.to(self.device)
+            pbar = tqdm(self.train_loader, desc=f'Epoch {epoch+1}/{self.config.epochs}', unit='batch', leave=True)
+            for batch in pbar:
+                imgs = batch['image'].to(self.device)
+                fcm_feats = batch['fcm_feat'].to(self.device)
+                labels = batch['label'].to(self.device)
                 self.optimizer.zero_grad()
                 outputs = self.model(imgs, fcm_feats)
                 loss = self.loss_fn(outputs, labels)
                 loss.backward()
                 self.optimizer.step()
                 train_loss += loss.item()
+                pbar.set_postfix(train_loss=f'{loss.item():.4f}')
             val_loss = self.validate()
+            avg_train_loss = train_loss / len(self.train_loader)
+            avg_val_loss = val_loss / len(self.val_loader)
+            pbar.set_postfix(train_loss=f'{avg_train_loss:.4f}', val_loss=f'{avg_val_loss:.4f}')
             self.scheduler.step()
             if val_loss < self.early_stopping.best_loss:
                 self.checkpoint.save(self.model)
@@ -47,8 +59,10 @@ class TrainingLoop:
         self.model.eval()
         val_loss = 0
         with torch.no_grad():
-            for imgs, fcm_feats, labels in self.val_loader:
-                imgs, fcm_feats, labels = imgs.to(self.device), fcm_feats.to(self.device), labels.to(self.device)
+            for batch in tqdm(self.val_loader, desc='  Validating', unit='batch', leave=False):
+                imgs = batch['image'].to(self.device)
+                fcm_feats = batch['fcm_feat'].to(self.device)
+                labels = batch['label'].to(self.device)
                 outputs = self.model(imgs, fcm_feats)
                 loss = self.loss_fn(outputs, labels)
                 val_loss += loss.item()

@@ -13,7 +13,8 @@ class MobileFCMViTv3(nn.Module):
         self.mbconv3 = MBConv(64, 128)
         self.mobilevit1 = MobileViTBlock(128, 64, patch_size=8, num_heads=2)
         self.mobilevit2 = MobileViTBlock(128, 64, patch_size=8, num_heads=2)
-        self.fcm_encoder = FCMFeatureEncoder(config.fcm_channels, 64)
+        # Force in_channels=3 for FCM features (3 clusters from precompute script)
+        self.fcm_encoder = FCMFeatureEncoder(3, 64)
         self.attn_fusion = AttentionFusion(128+64, 128)
         self.global_pool = nn.AdaptiveAvgPool2d(1)
         self.classifier = nn.Linear(128, config.num_classes)
@@ -26,6 +27,9 @@ class MobileFCMViTv3(nn.Module):
         x = self.mobilevit1(x)
         x = self.mobilevit2(x)
         fcm = self.fcm_encoder(fcm_feat)
+        if fcm.shape[2:] != x.shape[2:]:
+            import torch.nn.functional as F
+            fcm = F.interpolate(fcm, size=x.shape[2:], mode='bilinear', align_corners=False)
         fused = self.attn_fusion(x, fcm)
         pooled = self.global_pool(fused)
         pooled = pooled.view(pooled.size(0), -1)

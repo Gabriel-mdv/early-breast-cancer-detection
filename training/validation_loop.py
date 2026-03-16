@@ -16,8 +16,10 @@ class ValidationLoop:
         self.model.eval()
         val_loss = 0
         with torch.no_grad():
-            for imgs, fcm_feats, labels in self.val_loader:
-                imgs, fcm_feats, labels = imgs.to(self.device), fcm_feats.to(self.device), labels.to(self.device)
+            for batch in self.val_loader:
+                imgs = batch['image'].to(self.device)
+                fcm_feats = batch['fcm_feat'].to(self.device)
+                labels = batch['label'].to(self.device)
                 outputs = self.model(imgs, fcm_feats)
                 loss = self.loss_fn(outputs, labels)
                 val_loss += loss.item()

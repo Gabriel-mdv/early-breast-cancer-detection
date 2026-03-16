@@ -6,7 +6,7 @@ PyTorch and TensorFlow data loading with preprocessing
 import numpy as np
 from pathlib import Path
 from typing import Optional, Dict, Tuple, Union, List
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 import torch
 import json
 from .augmentation import DataAugmenter
@@ -52,12 +52,15 @@ class BUSIDataset(Dataset):
         # Augmentation setup (Phase 7)
         self._augmentation_enabled = False  # Set to True to enable class-aware augmentation
         self.augmenter = DataAugmenter()    # Initialize augmenter for class-aware strategies
-        
+
+        # FCM feature directory
+        self.fcm_feature_dir = self.image_dir.parent / 'fcm_features'
+
         # Load image paths and labels
         self.image_paths = []
         self.labels = []
         self.mask_paths = []
-        
+
         self._load_dataset(split_file)
     
     def _load_dataset(self, split_file: Optional[Union[str, Path]]):
@@ -118,23 +121,50 @@ class BUSIDataset(Dataset):
                 # Lighter augmentation for majority class
                 image = self._augment_light(image)
         
-        # Convert to torch tensor
+        # Convert to torch tensor and ensure [1, H, W] grayscale
         image_tensor = torch.from_numpy(image).float()
-        
+        if image_tensor.ndim == 2:
+            image_tensor = image_tensor.unsqueeze(0)  # [1, H, W]
+        elif image_tensor.ndim == 3:
+            if image_tensor.shape[-1] == 1:
+                image_tensor = image_tensor.permute(2, 0, 1)  # [1, H, W]
+            elif image_tensor.shape[-1] == 3:
+                # Convert RGB to grayscale by taking the first channel
+                image_tensor = image_tensor[..., 0].unsqueeze(0)
+
         # Apply transform if provided
         if self.transform:
             image_tensor = self.transform(image_tensor)
         
+        # Load FCM feature
+        # Construct FCM feature path: replace image_dir with fcm_feature_dir, keep class subdir and filename
+        fcm_feat_path = self.fcm_feature_dir / image_path.parent.name / image_path.name
+
+        if fcm_feat_path.exists():
+            fcm_feat = np.load(fcm_feat_path)
+            # Normalize to (H, W, C) then permute to (C, H, W)
+            if fcm_feat.ndim == 2:
+                fcm_feat = fcm_feat[..., np.newaxis]  # (H, W, 1)
+            elif fcm_feat.ndim == 4:
+                # (H, W, spatial, membership) -> flatten last two dims -> (H, W, C)
+                fcm_feat = fcm_feat.reshape(fcm_feat.shape[0], fcm_feat.shape[1], -1)
+            # Now always (H, W, C) -> (C, H, W)
+            fcm_feat_tensor = torch.from_numpy(fcm_feat).float().permute(2, 0, 1)
+        else:
+            # fallback: zeros if missing
+            fcm_feat_tensor = torch.zeros_like(image_tensor)
+
         result = {
             'image': image_tensor,
+            'fcm_feat': fcm_feat_tensor,
             'label': torch.tensor(label, dtype=torch.long)
         }
-        
+
         # Load mask if requested
         if self.include_mask and self.mask_paths and self.mask_paths[idx]:
             mask = np.load(self.mask_paths[idx])
             result['mask'] = torch.from_numpy(mask).float()
-        
+
         return result
     
     def _augment_aggressive(self, image: np.ndarray) -> np.ndarray:
@@ -210,7 +240,11 @@ class BUSIDataLoader:
         self.processed_dir = Path(processed_dir)
         self.mask_dir = Path(mask_dir) if mask_dir else None
         self.batch_size = batch_size
-        self.num_workers = num_workers
+        import os
+        max_workers = len(os.sched_getaffinity(0)) if hasattr(os, 'sched_getaffinity') else os.cpu_count()
+        env_override = int(os.environ.get('DATALOADER_NUM_WORKERS', num_workers))
+        self.num_workers = min(env_override, max_workers)
+        self.pin_memory = self.num_workers > 0
         self.class_labels = class_labels or {
             'benign': 0,
             'malignant': 1,
@@ -258,15 +292,28 @@ class BUSIDataLoader:
             shuffle = (split == 'train') and self.shuffle_train
         
         dataset = self.create_dataset(split, split_file)
-        
-        dataloader = DataLoader(
-            dataset,
-            batch_size=self.batch_size,
-            shuffle=shuffle,
-            num_workers=self.num_workers,
-            pin_memory=True
-        )
-        
+        if split == 'train':
+            # Class-aware sampling for training
+            class_sample_counts = np.bincount(dataset.labels)
+            weights = 1.0 / class_sample_counts[dataset.labels]
+            sampler = WeightedRandomSampler(weights, len(weights), replacement=True)
+            dataloader = DataLoader(
+                dataset,
+                batch_size=self.batch_size,
+                sampler=sampler,
+                num_workers=self.num_workers,
+                pin_memory=self.pin_memory,
+                persistent_workers=self.num_workers > 0
+            )
+        else:
+            dataloader = DataLoader(
+                dataset,
+                batch_size=self.batch_size,
+                shuffle=shuffle,
+                num_workers=self.num_workers,
+                pin_memory=self.pin_memory,
+                persistent_workers=self.num_workers > 0
+            )
         return dataloader
     
     def create_splits(self, train_split_file: Union[str, Path],

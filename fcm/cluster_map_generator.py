@@ -4,7 +4,7 @@ Cluster map generator for FCM outputs.
 
 import numpy as np
 from typing import Any
-from .fuzzy_c_means import FuzzyCMeans
+from .fcm import FuzzyCMeans
 
 class ClusterMapGenerator:
     def __init__(self, n_clusters: int = 3):

@@ -38,6 +38,9 @@ def main():
     from models.mobilefcmvitv3 import MobileFCMViTv3
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = MobileFCMViTv3(model_config).to(device)
+    if torch.cuda.device_count() > 1:
+        print(f"Using {torch.cuda.device_count()} GPUs with DataParallel.")
+        model = torch.nn.DataParallel(model)
 
     # Training
     trainer = Trainer(model, train_loader, val_loader, training_config, device)
