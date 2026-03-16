@@ -1,3 +1,7 @@
+"""
+ROC curve generation and visualization.
+"""
+
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, auc
 
