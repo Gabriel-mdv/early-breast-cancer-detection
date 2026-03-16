@@ -1,0 +1,9 @@
+# Model configuration for MobileFCMViTv3
+
+input_channels: 1
+fcm_channels: 3
+num_classes: 2
+image_size: 224
+mobilenet_blocks: 3
+mobilevit_blocks: 2
+attention_fusion: true
