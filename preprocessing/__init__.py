@@ -11,10 +11,12 @@ from .resize import Resizer
 from .augmentation import DataAugmenter
 from .preprocessor import ImagePreprocessor
 from .dataloader import BUSIDataset, BUSIDataLoader
+from .sampler import ClassAwareSampler, WeightedRandomSampler
 
 __all__ = [
     'ensure_dir', 'load_image', 'save_image', 'log_message',
     'FormatStandardizer', 'Denoiser', 'ContrastEnhancer',
     'Normalizer', 'Resizer', 'DataAugmenter', 'ImagePreprocessor',
-    'BUSIDataset', 'BUSIDataLoader'
+    'BUSIDataset', 'BUSIDataLoader',
+    'ClassAwareSampler', 'WeightedRandomSampler'
 ]

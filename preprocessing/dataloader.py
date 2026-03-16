@@ -9,7 +9,7 @@ from typing import Optional, Dict, Tuple, Union, List
 from torch.utils.data import Dataset, DataLoader
 import torch
 import json
-
+from .augmentation import DataAugmenter
 
 class BUSIDataset(Dataset):
     """PyTorch Dataset for BUSI breast cancer images"""
@@ -48,6 +48,10 @@ class BUSIDataset(Dataset):
         }
         
         self.class_names = {v: k for k, v in self.class_labels.items()}
+        
+        # Augmentation setup (Phase 7)
+        self._augmentation_enabled = False  # Set to True to enable class-aware augmentation
+        self.augmenter = DataAugmenter()    # Initialize augmenter for class-aware strategies
         
         # Load image paths and labels
         self.image_paths = []
@@ -105,6 +109,15 @@ class BUSIDataset(Dataset):
         # Load image
         image = np.load(image_path)
         
+        # Apply class-aware augmentation if enabled (Phase 7)
+        if self._augmentation_enabled:
+            if label in [1, 2]:  # Malignant (1) or Normal (2) - MINORITY classes
+                # Heavier augmentation for minority classes
+                image = self._augment_aggressive(image)
+            else:  # Benign (0) - MAJORITY class
+                # Lighter augmentation for majority class
+                image = self._augment_light(image)
+        
         # Convert to torch tensor
         image_tensor = torch.from_numpy(image).float()
         
@@ -123,6 +136,42 @@ class BUSIDataset(Dataset):
             result['mask'] = torch.from_numpy(mask).float()
         
         return result
+    
+    def _augment_aggressive(self, image: np.ndarray) -> np.ndarray:
+        """
+        Apply aggressive augmentation for minority classes (malignant, normal).
+        
+        Args:
+            image: Input image (H, W, C) or (H, W)
+        
+        Returns:
+            Augmented image
+        """
+        augmentation_config = {
+            'horizontal_flip': {'probability': 0.7},
+            'rotate': {'angle_range': (-20, 20), 'probability': 0.7},
+            'brightness_contrast': {'factor_range': (0.7, 1.3), 'probability': 0.6},
+            'translate': {'max_shift': 0.15, 'probability': 0.6}
+        }
+        return self.augmenter.augment(image, augmentation_config)
+    
+    def _augment_light(self, image: np.ndarray) -> np.ndarray:
+        """
+        Apply light augmentation for majority class (benign).
+        
+        Args:
+            image: Input image (H, W, C) or (H, W)
+        
+        Returns:
+            Augmented image
+        """
+        augmentation_config = {
+            'horizontal_flip': {'probability': 0.3},
+            'rotate': {'angle_range': (-10, 10), 'probability': 0.3},
+            'brightness_contrast': {'factor_range': (0.85, 1.15), 'probability': 0.2},
+            'translate': {'max_shift': 0.05, 'probability': 0.2}
+        }
+        return self.augmenter.augment(image, augmentation_config)
     
     def get_class_weights(self) -> torch.Tensor:
         """
